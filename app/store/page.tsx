@@ -165,7 +165,7 @@ export default function StorePage() {
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            IPFS Storage with Lighthouse
+            Filecoin Storage with Lighthouse
           </h1>
           <p className="text-muted-foreground text-lg">
             Upload multiple images to decentralized storage
@@ -237,13 +237,13 @@ export default function StorePage() {
                 <div className="aspect-square rounded-lg overflow-hidden border max-w-sm mx-auto">
                   <img
                     src={`https://gateway.lighthouse.storage/ipfs/${uploadedCID}`}
-                    alt="Uploaded to IPFS"
+                    alt="Uploaded to Filecoin"
                     className="w-full h-full object-cover"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">IPFS CID</Label>
+                  <Label className="text-xs text-muted-foreground">Filecoin CID</Label>
                   <div className="p-2 bg-muted rounded font-mono text-xs break-all">
                     {uploadedCID}
                   </div>
@@ -329,7 +329,7 @@ export default function StorePage() {
             <CardHeader>
               <CardTitle>Upload Image</CardTitle>
               <CardDescription>
-                Select an image to upload to IPFS
+                Select an image to upload to Filecoin
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -372,7 +372,7 @@ export default function StorePage() {
                   ) : (
                     <>
                       <Upload className="mr-2 h-5 w-5" />
-                      Upload to IPFS
+                      Upload to Filecoin
                     </>
                   )}
                 </Button>
@@ -395,13 +395,13 @@ export default function StorePage() {
 
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle>About IPFS Storage</CardTitle>
+            <CardTitle>About Filecoin Storage</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p>• Upload images directly to IPFS using Lighthouse SDK</p>
+            <p>• Upload images directly to Filecoin using Lighthouse SDK</p>
             <p>• Files are permanently stored on decentralized storage</p>
             <p>• Each file gets a unique Content Identifier (CID)</p>
-            <p>• Retrieve files using the IPFS CID from any gateway</p>
+            <p>• Retrieve files using the Filecoin CID from any gateway</p>
             <p>• No centralized servers - your data is truly yours</p>
           </CardContent>
         </Card>

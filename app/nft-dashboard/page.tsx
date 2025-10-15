@@ -301,7 +301,7 @@ function NFTCard({ tokenId }: { tokenId: bigint }) {
               rel="noopener noreferrer"
             >
               <ImageIcon className="mr-2 h-4 w-4" />
-              View IPFS Image
+              View Filecoin Image
             </a>
           </Button>
         </div>
