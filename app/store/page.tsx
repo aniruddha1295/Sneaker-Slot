@@ -1,411 +1,411 @@
-"use client";
-import Link from "next/link";
-import Image from "next/image";
-import Footer from "@/components/Footer";
-import { WalletConnect } from "@/components/walletConnect";
-import { useAccount, useSwitchChain, useChainId } from "wagmi";
-import { base, baseSepolia, avalanche, avalancheFuji } from "wagmi/chains";
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import { ethers } from "ethers";
-import { CONTRACT_ABI, CONTRACT_ADDRESS } from "@/lib/contract";
-import { useEthersProvider, useEthersSigner } from "@/hooks/useEthers";
+'use client';
+
+import { useState } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import lighthouse from '@lighthouse-web3/sdk';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Upload, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { SNEAKER_NFT_ABI, SNEAKER_NFT_ADDRESS } from '@/lib/sneaker-nft-contract';
+import Link from 'next/link';
 
-type FaucetChain = typeof base | typeof baseSepolia | typeof avalanche | typeof avalancheFuji;
+export default function StorePage() {
+  const { address, isConnected } = useAccount();
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedCID, setUploadedCID] = useState<string>('');
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  
+  // NFT Metadata
+  const [sneakerName, setSneakerName] = useState('');
+  const [brand, setBrand] = useState('');
+  const [price, setPrice] = useState('');
+  const [minting, setMinting] = useState(false);
+  const [mintedTokenId, setMintedTokenId] = useState<string>('');
 
-const SUPPORTED_CHAINS: FaucetChain[] = [base, baseSepolia, avalanche, avalancheFuji];
+  const { writeContract, data: hash, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
-export default function Faucet() {
-    const { isConnected, address } = useAccount();
-    const connectedChainId = useChainId();
-    const { switchChain, isPending: isSwitching } = useSwitchChain();
-    const [selectedId, setSelectedId] = useState<number>(baseSepolia.id);
-    const [isMinting, setIsMinting] = useState(false);
-    const [mintError, setMintError] = useState<string | null>(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
-    const [uploadedFile, setUploadedFile] = useState<any>(null);
-    const [uploadError, setUploadError] = useState<string | null>(null);
-    const [isStoring, setIsStoring] = useState(false);
-    const [storeError, setStoreError] = useState<string | null>(null);
-    const [storeSuccess, setStoreSuccess] = useState(false);
-    const [isReading, setIsReading] = useState(false);
-    const [readError, setReadError] = useState<string | null>(null);
-    const [storedImageUrl, setStoredImageUrl] = useState<string | null>(null);
-    const [retrievedCid, setRetrievedCid] = useState<string | null>(null);
-    const selectedChain = useMemo(() => SUPPORTED_CHAINS.find((c) => c.id === selectedId)!, [selectedId]);
-    const isMatching = connectedChainId === selectedId;
-    const [uploading, setUploading] = useState(false)
-
-  const signer = useEthersSigner();
-  const provider = useEthersProvider();
-
-  // Lighthouse API key - replace with your actual API key
-  const LIGHTHOUSE_API_KEY = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY || "YOUR_API_KEY";
-
-  const progressCallback = (progressData: any) => {
-    let percentageDone = ((progressData?.uploaded / progressData?.total) * 100)?.toFixed(2);
-    setUploadProgress(parseFloat(percentageDone) || 0);
-    console.log(percentageDone);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile));
+    }
   };
 
-  const onUploadChange = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
-    const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY
-    if (!apiKey) {
-      setUploadError("Lighthouse API key not configured")
-      return
-    }
-    setUploading(true)
-    setUploadError(null)
-    setUploadProgress(0)
+  const uploadToLighthouse = async () => {
+    if (!file) return;
+
     try {
-      const { default: lighthouse } = await import("@lighthouse-web3/sdk")
-      const progressCallback = (progressData: any) => {
-        try {
-          const pct =
-            100 -
-            Number(
-              (
-                (progressData?.total / progressData?.uploaded) as number
-              ).toFixed(2)
-            )
-          if (!Number.isNaN(pct)) setUploadProgress(pct)
-        } catch {}
+      setUploading(true);
+      setUploadProgress(0);
+
+      const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
+      
+      if (!apiKey) {
+        throw new Error('Lighthouse API key not found');
       }
-      const output = await lighthouse.upload(
-        files,
-        apiKey,
-        undefined,
-        progressCallback
-      )
-      const cid = output?.data?.Hash as string | undefined
-      if (!cid) throw new Error("Upload failed: no CID returned")
-     
-      setUploadedFile(output)
-      setUploadProgress(100)
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed")
+
+      console.log('Starting upload with API key:', apiKey.substring(0, 10) + '...');
+      
+      const output = await lighthouse.upload([file], apiKey);
+
+      console.log('Upload response:', output);
+
+      if (output?.data?.Hash) {
+        setUploadedCID(output.data.Hash);
+        setUploadProgress(100);
+      } else {
+        throw new Error('No CID returned from upload');
+      }
+    } catch (error) {
+      console.error('Error uploading to Lighthouse:', error);
+      alert('Error uploading file: ' + (error as Error).message);
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
+  };
+
+  const mintNFT = async () => {
+    if (!sneakerName || !brand || !price || !uploadedCID) {
+      alert('Please fill all fields and upload image first');
+      return;
+    }
+
+    // Check if contract address is configured
+    if (SNEAKER_NFT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+      alert('Smart contract not deployed yet! Please deploy the contract first.\n\nSee DEPLOYMENT.md for instructions.');
+      return;
+    }
+
+    try {
+      setMinting(true);
+
+      // Create metadata JSON
+      const metadata = {
+        name: sneakerName,
+        brand: brand,
+        price: price,
+        image: `ipfs://${uploadedCID}`,
+        attributes: [
+          { trait_type: "Brand", value: brand },
+          { trait_type: "Price", value: `₹${price}` },
+        ]
+      };
+
+      // Upload metadata to IPFS
+      const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY!;
+      const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+      const metadataFile = new File([metadataBlob], 'metadata.json');
+      const metadataUpload = await lighthouse.upload([metadataFile], apiKey);
+      const metadataURI = `ipfs://${metadataUpload.data.Hash}`;
+
+      const imageURI = `https://gateway.lighthouse.storage/ipfs/${uploadedCID}`;
+
+      console.log('Minting NFT with params:', {
+        sneakerName,
+        brand,
+        imageURI,
+        price: BigInt(Math.floor(parseFloat(price) * 100)),
+        metadataURI
+      });
+
+      // Mint NFT
+      writeContract({
+        address: SNEAKER_NFT_ADDRESS as `0x${string}`,
+        abi: SNEAKER_NFT_ABI,
+        functionName: 'mintSneaker',
+        args: [
+          sneakerName,
+          brand,
+          [imageURI], // imageURIs array
+          BigInt(Math.floor(parseFloat(price) * 100)),
+          metadataURI
+        ],
+      });
+
+    } catch (error) {
+      console.error('Error minting NFT:', error);
+      alert('Error minting NFT: ' + (error as Error).message);
+      setMinting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    setPreviewUrl('');
+    setUploadedCID('');
+    setSneakerName('');
+    setBrand('');
+    setPrice('');
+    setUploadProgress(0);
+    setMintedTokenId('');
+  };
+
+  // Handle mint confirmation
+  if (isConfirmed && minting) {
+    setMinting(false);
+    setMintedTokenId(hash || '');
   }
 
-    const handleMint = useCallback(async () => {
-        if (!isConnected || !isMatching) return;
-        const faucetAddress = CONTRACT_ADDRESS;
-        try {
-            setIsMinting(true);
-      setMintError(null);
-            
-            if (!provider || !signer) {
-                throw new Error("Please connect your wallet");
-            }
+  // Show write error
+  if (writeError && minting) {
+    console.error('Write contract error:', writeError);
+    alert('Transaction failed: ' + writeError.message);
+    setMinting(false);
+  }
 
-            const contract = new ethers.Contract(
-                faucetAddress,
-                CONTRACT_ABI as ethers.InterfaceAbi,
-                signer
-            );
-            const tx = await contract.mint();
-            await tx.wait();
-    } catch (e) {
-      const err = e as unknown as { reason?: string; shortMessage?: string; message?: string };
-      const reason = err?.reason || err?.shortMessage || err?.message || "Transaction failed";
-      setMintError(reason);
-    } finally {
-            setIsMinting(false);
-        }
-  }, [isConnected, isMatching, provider, signer]);
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            IPFS Storage with Lighthouse
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            Upload multiple images to decentralized storage
+          </p>
+        </div>
 
-  const handleStore = useCallback(async () => {
-    if (!isConnected || !isMatching || !uploadedFile) return;
-    const faucetAddress = CONTRACT_ADDRESS;
-    try {
-      setIsStoring(true);
-      setStoreError(null);
-      setStoreSuccess(false);
-      
-      if (!provider || !signer) {
-        throw new Error("Please connect your wallet");
-      }
+        {!isConnected ? (
+          <Card className="max-w-md mx-auto">
+            <CardHeader>
+              <CardTitle>Connect Wallet</CardTitle>
+              <CardDescription>
+                Connect your wallet to upload and mint NFTs
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center">
+              <ConnectButton />
+            </CardContent>
+          </Card>
+        ) : mintedTokenId ? (
+          <Card className="border-green-500/50">
+            <CardHeader>
+              <CardTitle className="text-green-600 dark:text-green-400 flex items-center gap-2">
+                <CheckCircle2 className="h-6 w-6" />
+                NFT Minted Successfully!
+              </CardTitle>
+              <CardDescription>
+                Your sneaker has been minted as an NFT
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Transaction Hash</Label>
+                <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all">
+                  {mintedTokenId}
+                </div>
+              </div>
 
-      const contract = new ethers.Contract(
-        faucetAddress,
-        CONTRACT_ABI as ethers.InterfaceAbi,
-        signer
-      );
-      
-      const cid = uploadedFile.data.Hash;
-      const tx = await contract.store(cid);
-      await tx.wait();
-      setStoreSuccess(true);
-    } catch (e) {
-      const err = e as unknown as { reason?: string; shortMessage?: string; message?: string };
-      const reason = err?.reason || err?.shortMessage || err?.message || "Store transaction failed";
-      setStoreError(reason);
-    } finally {
-      setIsStoring(false);
-    }
-  }, [isConnected, isMatching, provider, signer, uploadedFile]);
+              <div className="aspect-square rounded-lg overflow-hidden border max-w-md mx-auto">
+                <img
+                  src={`https://gateway.lighthouse.storage/ipfs/${uploadedCID}`}
+                  alt="Minted NFT"
+                  className="w-full h-full object-cover"
+                />
+              </div>
 
-  // Load stored CID and image URL
-  useEffect(() => {
-    const loadStored = async () => {
-      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-      const hasSigner = Boolean(signer);
-      const hasRpc = Boolean(rpcUrl);
-      if (!hasSigner && !hasRpc) return;
-
-      const faucetAddress = CONTRACT_ADDRESS;
-      try {
-        setIsReading(true);
-        setReadError(null);
-        setStoredImageUrl(null);
-        setRetrievedCid(null);
-
-        const readProvider = hasSigner ? signer!.provider : new ethers.JsonRpcProvider(rpcUrl!);
-        const contract = new ethers.Contract(
-          faucetAddress,
-          CONTRACT_ABI as ethers.InterfaceAbi,
-          readProvider
-        );
-
-        const cid = await contract.retrieve();
-        setRetrievedCid(cid);
-        if (cid && cid !== "") {
-          setStoredImageUrl(`https://gateway.lighthouse.storage/ipfs/${cid}`);
-        }
-      } catch (e) {
-        const err = e as unknown as { reason?: string; shortMessage?: string; message?: string };
-        const reason = err?.reason || err?.shortMessage || err?.message || "Failed to read stored CID";
-        setReadError(reason);
-      } finally {
-        setIsReading(false);
-      }
-    };
-
-    loadStored();
-  }, [signer, storeSuccess]);
-
-    return (
-        <div className="min-h-screen bg-white-pattern">
-            {/* Hero/Header */}
-            <section className="min-h-screen flex flex-col justify-between pb-10 md:pb-20">
-                <div className="flex justify-between items-center pt-20 md:pt-32 container mx-auto px-4 md:px-16 ">
-                    <Link href="/">
-                        <Image
-                            className="cursor-pointer"
-                            src="/assets/logos/logo.svg"
-                            width={150}
-                            height={150}
-                            alt="Randamu Logo"
-                        />
-                    </Link>
-                    <div className="flex items-center">
-                        {!isConnected ? (
-                            <WalletConnect />
-                        ) : (
-                            <div className="flex items-center space-x-2">
-                                <span className="font-funnel-display text-xl text-gray-600">
-                                    Hello, {address?.slice(0, 6)}...{address?.slice(-4)} 👋
-                                </span>
-                            </div>
-                        )}
-                    </div>
+              <div className="flex gap-3">
+                <Button onClick={resetForm} className="flex-1">
+                  Mint Another NFT
+                </Button>
+                <Button asChild variant="outline" className="flex-1">
+                  <Link href="/nft-dashboard">View Dashboard</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : uploadedCID ? (
+          <div className="space-y-6">
+            <Card className="border-green-500/50">
+              <CardHeader>
+                <CardTitle className="text-green-600 dark:text-green-400 flex items-center gap-2">
+                  <CheckCircle2 className="h-6 w-6" />
+                  Image Uploaded Successfully
+                </CardTitle>
+                <CardDescription>
+                  Now add sneaker details to mint it as an NFT
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="aspect-square rounded-lg overflow-hidden border max-w-sm mx-auto">
+                  <img
+                    src={`https://gateway.lighthouse.storage/ipfs/${uploadedCID}`}
+                    alt="Uploaded to IPFS"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
 
-                {/* Main Content - Two Sections */}
-                {isConnected && (
-                    <div className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-16 px-4">
-                        {/* Upload & Store Section */}
-                        <div className="flex flex-col items-center space-y-4 w-full lg:w-1/2">
-                            <h2 className="font-funnel-display text-2xl font-bold text-black mb-4">
-                                Upload & Store Image
-                            </h2>
-                            <div className="relative">
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    id="file-upload"
-                                    onChange={(e) => onUploadChange(e.target.files)}
-                                    disabled={isUploading}
-                                />
-                                <label
-                                    htmlFor="file-upload"
-                                    className={`flex flex-col items-center justify-center w-96 h-64 border-2 border-dashed rounded-lg transition-colors cursor-pointer ${
-                                        isUploading 
-                                            ? 'border-blue-400 bg-blue-50' 
-                                            : 'border-gray-300 bg-white hover:border-gray-400'
-                                    }`}
-                                >
-                                    <div className="flex flex-col items-center space-y-3">
-                                        {isUploading ? (
-                                            <div className="flex flex-col items-center space-y-2">
-                                                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                                                <p className="text-sm text-blue-600 font-funnel-display">
-                                                    Uploading... {uploadProgress.toFixed(0)}%
-                                                </p>
-                                            </div>
-                                        ) : uploadedFile ? (
-                                            <div className="flex flex-col items-center space-y-2">
-                                                <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                <p className="text-sm text-green-600 font-funnel-display">
-                                                    Upload successful!
-                                                </p>
-                                                <p className="text-xs text-gray-500 font-funnel-display">
-                                                    IPFS Hash: {uploadedFile.data.Hash.slice(0, 10)}...
-                                                </p>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <svg
-                                                    className="w-12 h-12 text-gray-400"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path
-                                                        strokeLinecap="round"
-                                                        strokeLinejoin="round"
-                                                        strokeWidth={1.5}
-                                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                                                    />
-                                                </svg>
-                                                <div className="text-center">
-                                                    <p className="text-lg font-semibold text-gray-700 font-funnel-display">
-                                                        Upload a photo
-                                                    </p>
-                                                    <p className="text-sm text-gray-500 font-funnel-display">
-                                                        Drag and drop or click to browse
-                                                    </p>
-                                                    <p className="text-xs text-gray-400 font-funnel-display mt-1">
-                                                        PNG, JPG up to 10MB
-                                                    </p>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </label>
-                            </div>
-                            {uploadError && (
-                                <p className="text-sm text-red-600 font-funnel-display mt-2">
-                                    {uploadError}
-                                </p>
-                            )}
-                            {uploadedFile && (
-                                <div className="mt-4 space-y-3">
-                                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                        <p className="text-sm text-green-800 font-funnel-display">
-                                            File uploaded to IPFS! 
-                                            <a 
-                                                href={`https://gateway.lighthouse.storage/ipfs/${uploadedFile.data.Hash}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="ml-2 text-blue-600 hover:underline"
-                                            >
-                                                View file
-                                            </a>
-                                        </p>
-                                    </div>
-                                    
-                                    {/* Store Button */}
-                                    <div className="flex flex-col items-center space-y-2">
-                                        <button
-                                            onClick={handleStore}
-                                            disabled={isStoring || !isConnected || !isMatching}
-                                            className={`px-6 py-3 rounded-lg font-funnel-display font-semibold transition-colors ${
-                                                isStoring || !isConnected || !isMatching
-                                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                                            }`}
-                                        >
-                                            {isStoring ? (
-                                                <div className="flex items-center space-x-2">
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                    <span>Storing...</span>
-                                                </div>
-                                            ) : (
-                                                'Store on Blockchain'
-                                            )}
-                                        </button>
-                                        
-                                        {storeError && (
-                                            <p className="text-sm text-red-600 font-funnel-display">
-                                                {storeError}
-                                            </p>
-                                        )}
-                                        
-                                        {storeSuccess && (
-                                            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                                                <p className="text-sm text-green-800 font-funnel-display">
-                                                    ✅ Successfully stored on blockchain!
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">IPFS CID</Label>
+                  <div className="p-2 bg-muted rounded font-mono text-xs break-all">
+                    {uploadedCID}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-                        {/* Read & Display Section */}
-                        <div className="flex flex-col items-center space-y-4 w-full lg:w-1/2">
-                            <h2 className="font-funnel-display text-2xl font-bold text-black mb-4">
-                                Stored Image
-                            </h2>
-                            <div className="w-full max-w-md">
-                                {isReading && (
-                                    <div className="flex items-center justify-center space-x-2 py-8">
-                                        <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                                        <span className="text-blue-600 font-funnel-display">Loading stored image...</span>
-                                    </div>
-                                )}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5" />
+                  NFT Details
+                </CardTitle>
+                <CardDescription>
+                  Enter the sneaker information to mint as NFT
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sneakerName">Sneaker Name *</Label>
+                  <Input
+                    id="sneakerName"
+                    placeholder="e.g., Air Jordan 1 Retro High"
+                    value={sneakerName}
+                    onChange={(e) => setSneakerName(e.target.value)}
+                    disabled={minting || isConfirming}
+                  />
+                </div>
 
-                                {readError && (
-                                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                                        <p className="text-sm text-red-600 font-funnel-display">{readError}</p>
-                                    </div>
-                                )}
+                <div className="space-y-2">
+                  <Label htmlFor="brand">Brand *</Label>
+                  <Input
+                    id="brand"
+                    placeholder="e.g., Nike, Adidas, New Balance"
+                    value={brand}
+                    onChange={(e) => setBrand(e.target.value)}
+                    disabled={minting || isConfirming}
+                  />
+                </div>
 
-                                {retrievedCid && !isReading && (
-                                    <div className="mb-3">
-                                        <p className="text-xs text-gray-500 font-funnel-display">CID: {retrievedCid}</p>
-                                    </div>
-                                )}
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (in smallest units) *</Label>
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder="e.g., 15000 (will be converted to 150.00)"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    disabled={minting || isConfirming}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter price in smallest units (e.g., 15000 = $150.00)
+                  </p>
+                </div>
 
-                                {storedImageUrl && !isReading && (
-                                    <div className="space-y-3">
-                                        <div className="border-2 border-gray-200 rounded-lg overflow-hidden">
-                                            <img
-                                                src={storedImageUrl}
-                                                alt="Stored image from blockchain"
-                                                className="w-full h-auto max-h-96 object-contain"
-                                                onError={(e) => {
-                                                    const target = e.target as HTMLImageElement;
-                                                    target.style.display = 'none';
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    onClick={mintNFT}
+                    disabled={!sneakerName || !brand || !price || minting || isConfirming}
+                    className="flex-1"
+                  >
+                    {minting || isConfirming ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {minting ? "Minting..." : "Confirming..."}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Mint as NFT
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={resetForm} variant="outline">
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Image</CardTitle>
+              <CardDescription>
+                Select an image to upload to IPFS
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="file">Choose File</Label>
+                <Input
+                  id="file"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                />
+              </div>
 
-                                {!isReading && !storedImageUrl && !readError && (
-                                    <div className="p-8 text-center text-gray-500">
-                                        <p className="font-funnel-display">No image stored on blockchain</p>
-                                        <p className="text-sm mt-2">Upload and store an image to see it here</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </section>
+              {previewUrl && (
+                <div className="space-y-2">
+                  <Label>Preview</Label>
+                  <div className="aspect-square rounded-lg overflow-hidden border max-w-md mx-auto">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+              )}
 
-            {/* Footer */}
-            <Footer />
-        </div>
-    );
+              {file && (
+                <Button
+                  onClick={uploadToLighthouse}
+                  disabled={uploading}
+                  className="w-full"
+                  size="lg"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Uploading... {uploadProgress}%
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-5 w-5" />
+                      Upload to IPFS
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {uploading && (
+                <div className="space-y-2">
+                  <Label>Upload Progress</Label>
+                  <div className="w-full bg-muted rounded-full h-2.5">
+                    <div
+                      className="bg-primary h-2.5 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>About IPFS Storage</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>• Upload images directly to IPFS using Lighthouse SDK</p>
+            <p>• Files are permanently stored on decentralized storage</p>
+            <p>• Each file gets a unique Content Identifier (CID)</p>
+            <p>• Retrieve files using the IPFS CID from any gateway</p>
+            <p>• No centralized servers - your data is truly yours</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }

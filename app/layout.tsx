@@ -4,6 +4,10 @@ import { Funnel_Display, Funnel_Sans } from "next/font/google";
 import "./globals.css";
 import { ContextProvider } from ".";
 import ReactQueryProvider from "./ReactQueryProvider";
+import { ErrorSuppressor } from "@/components/ErrorSuppressor";
+import { SimpleNav } from "@/components/layout/SimpleNav";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const geistMono = Geist_Mono({
@@ -33,12 +37,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geist.variable} ${geistMono.variable} ${funnelDisplay.variable} ${funnelSans.variable} font-sans`}
+        suppressHydrationWarning
       >
+        <ErrorSuppressor />
         <ReactQueryProvider>
-          <ContextProvider>{children}</ContextProvider>
+          <ContextProvider>
+            <TooltipProvider>
+              <div className="min-h-screen bg-background text-foreground">
+                <SimpleNav />
+                <main>{children}</main>
+              </div>
+              <Toaster />
+            </TooltipProvider>
+          </ContextProvider>
         </ReactQueryProvider>
       </body>
     </html>
