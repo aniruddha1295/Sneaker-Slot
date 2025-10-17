@@ -2,6 +2,7 @@
 
 
 
+
 A premium sneaker marketplace built with Next.js 15, featuring the SneakerVerse UI integrated with Filecoin/IPFS storage capabilities.A Next.js starter kit for building decentralized sneaker marketplace applications with **Lighthouse Storage** (IPFS) and **Smart Contracts**. Features a complete UI component library from SneakerVerse.
 
 
