@@ -1,4 +1,4 @@
-# SneakerVerse on Orbit Starter Kit# 🚀 Orbit Starter Kit - SneakerVerse Editio
+# SneakerVerse on Orbit Starter Kit# 🚀 Orbit Starter Kit - SneakerVerse Edition
 
 
 
