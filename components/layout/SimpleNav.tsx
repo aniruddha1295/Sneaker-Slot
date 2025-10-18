@@ -16,7 +16,7 @@ export function SimpleNav() {
           <div className="hidden md:flex items-center gap-4">
             <Link href="/">
               <Button variant="ghost" size="sm">
-                <Home className="mr-2 h-4 w-4" />
+                <Home className="mr-2 h-4 w-4"/>
                 Home
               </Button>
             </Link>
